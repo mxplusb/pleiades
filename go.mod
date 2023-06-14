@@ -12,6 +12,7 @@ require (
 	github.com/go-git/go-git/v5 v5.5.1
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7
 	github.com/hashicorp/serf v0.9.7
+	github.com/heimdalr/dag v1.2.1
 	github.com/kr/text v0.2.0
 	github.com/lni/dragonboat/v3 v3.3.6
 	github.com/lni/goutils v1.3.0
