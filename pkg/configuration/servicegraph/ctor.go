@@ -10,7 +10,9 @@
 package servicegraph
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/cockroachdb/errors"
 	"github.com/heimdalr/dag"
@@ -24,11 +26,20 @@ func newCtorNode(ctor interface{}, d *dag.DAG) (*ctorNode, error) {
 	cval := reflect.ValueOf(ctor)
 	ctype := cval.Type()
 
-	c := &ctorNode{
-		name: cval.String(),
-		called: false,
+	// ensure the ctor is a function
+	// yay compile time optimization lol
+	switch ctype.Kind() {
+	case reflect.Func:
+		// do nothing
+	default:
+		return nil, errors.Newf("ctor must be a function")
 	}
-	c.def = inspectFunc(ctor)
+
+	c := &ctorNode{
+		called: false,
+		ctor:   ctor,
+		def:    inspectFunc(ctor),
+	}
 
 	// add the ctor to the dag
 	if err:= d.AddVertexByID(c.ID(), c); err != nil {
@@ -39,7 +50,7 @@ func newCtorNode(ctor interface{}, d *dag.DAG) (*ctorNode, error) {
 	if ctype.NumIn() > 0 {
 		for i := 0; i < ctype.NumIn(); i++ {
 			switch {
-			case ctype.Kind() == reflect.Func:
+			case ctype.In(i).Kind() == reflect.Func:
 				node, err := newCtorNode(ctype.In(i), d)
 				if err != nil {
 					return nil, errors.Wrapf(err, "failed to determine ctor node for ctor %v param %v", ctype, i)
@@ -51,7 +62,7 @@ func newCtorNode(ctor interface{}, d *dag.DAG) (*ctorNode, error) {
 				in := ctype.In(i)
 				inNode, err := newTypeNode(in, d)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to determine type node for ctor %v param %v", ctype, i)
+					return nil, errors.Wrapf(err, "failed to add type node for ctor %v param %v", ctype, i)
 				}
 
 				if err := d.AddEdge(inNode.ID(), c.ID()); err != nil {
@@ -65,7 +76,7 @@ func newCtorNode(ctor interface{}, d *dag.DAG) (*ctorNode, error) {
 	if ctype.NumOut() > 0 {
 		for i := 0; i < ctype.NumOut(); i++ {
 			switch {
-			case ctype.Kind() == reflect.Func:
+			case ctype.Out(i).Kind() == reflect.Func:
 				node, err := newCtorNode(ctype.Out(i), d)
 				if err != nil {
 					return nil, errors.Wrapf(err, "failed to determine ctor node for ctor %v param %v", ctype, i)
@@ -102,6 +113,12 @@ type ctorNode struct {
 	called bool
 }
 
-func (c *ctorNode) ID() string {
+func (c *ctorNode) String() string {
+	n := strings.Split(c.def.pakage, "/")
+	c.name = fmt.Sprintf("%s.%s", n[len(n)-1], c.def.name)
 	return c.name
+}
+
+func (c *ctorNode) ID() string {
+	return c.String()
 }
